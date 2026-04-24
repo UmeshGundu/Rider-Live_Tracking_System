@@ -1,0 +1,1895 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+.gitignore
+app.json
+app/_layout.tsx
+app/(tabs)/_layout.tsx
+app/(tabs)/explore.tsx
+app/(tabs)/history.tsx
+app/(tabs)/index.tsx
+app/modal.tsx
+assets/images/android-icon-background.png
+assets/images/android-icon-foreground.png
+assets/images/android-icon-monochrome.png
+assets/images/favicon.png
+assets/images/icon.png
+assets/images/partial-react-logo.png
+assets/images/react-logo.png
+assets/images/react-logo@2x.png
+assets/images/react-logo@3x.png
+assets/images/splash-icon.png
+components/external-link.tsx
+components/haptic-tab.tsx
+components/hello-wave.tsx
+components/parallax-scroll-view.tsx
+components/rider-map.tsx
+components/themed-text.tsx
+components/themed-view.tsx
+components/ui/collapsible.tsx
+components/ui/icon-symbol.ios.tsx
+components/ui/icon-symbol.tsx
+config/backend.ts
+constants/theme.ts
+eslint.config.js
+hooks/use-color-scheme.ts
+hooks/use-color-scheme.web.ts
+hooks/use-theme-color.ts
+hooks/use-user-websocket.ts
+package.json
+README.md
+scripts/reset-project.js
+tsconfig.json
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="app/(tabs)/history.tsx">
+/**
+ * app/(tabs)/history.tsx - Location update history for this session
+ */
+import { Platform, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+export default function HistoryScreen() {
+  return (
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Update History</Text>
+      </View>
+      <View style={styles.body}>
+        <Text style={styles.emoji}>Live</Text>
+        <Text style={styles.title}>Live updates log</Text>
+        <Text style={styles.desc}>
+          Every GPS update received from the rider over WebSocket appears
+          on the Track Order tab in real time.{'\n\n'}
+          In a production app you would persist these coordinates here,
+          allow route replay, and show an estimated arrival time.
+        </Text>
+        <View style={styles.infoCard}>
+          <Text style={styles.infoRow}>WebSocket topic</Text>
+          <Text style={styles.infoValue}>/topic/rider/RIDER_001</Text>
+          <Text style={[styles.infoRow, { marginTop: 8 }]}>Persistence</Text>
+          <Text style={styles.infoValue}>MySQL rider_location table</Text>
+          <Text style={[styles.infoRow, { marginTop: 8 }]}>REST history</Text>
+          <Text style={styles.infoValue}>GET /api/location/RIDER_001/last</Text>
+        </View>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: '#F7FAFC' },
+  header: {
+    backgroundColor: '#2B6CB0',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  headerTitle: { fontSize: 20, fontWeight: '700', color: '#fff' },
+  body: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    gap: 12,
+  },
+  emoji: { fontSize: 24, fontWeight: '700', color: '#2B6CB0' },
+  title: { fontSize: 20, fontWeight: '700', color: '#2D3748' },
+  desc: { fontSize: 14, color: '#718096', textAlign: 'center', lineHeight: 22 },
+  infoCard: {
+    width: '100%',
+    backgroundColor: '#EBF8FF',
+    borderRadius: 10,
+    padding: 14,
+    borderLeftWidth: 4,
+    borderLeftColor: '#3182CE',
+    marginTop: 8,
+  },
+  infoRow: { fontSize: 12, fontWeight: '600', color: '#2B6CB0' },
+  infoValue: {
+    fontSize: 13,
+    color: '#2C5282',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    marginBottom: 2,
+  },
+});
+</file>
+
+<file path="components/rider-map.tsx">
+/**
+ * components/rider-map.tsx
+ *
+ * Cross-platform map wrapper.
+ *
+ * • Native (iOS / Android) – uses react-native-maps with an animated
+ *   Marker that smoothly interpolates between GPS positions using the
+ *   built-in MapView.animateCamera().
+ *
+ * • Web – react-native-maps doesn't render in a browser.
+ *   We fall back to a styled div that shows the raw coordinates and a
+ *   simple SVG "moving dot" so the feature is still demonstrable on web.
+ *
+ * Props:
+ *   riderLocation  – current { latitude, longitude } or null
+ *   routeCoords    – array of { latitude, longitude } for the trail polyline
+ *   showTrail      – whether to render the Polyline
+ */
+
+import React, { useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, Platform } from 'react-native';
+
+export interface LatLng {
+  latitude:  number;
+  longitude: number;
+}
+
+interface RiderMapProps {
+  riderLocation: LatLng | null;
+  routeCoords:   LatLng[];
+  showTrail:     boolean;
+}
+
+// ─── Native map ───────────────────────────────────────────────────────────────
+// react-native-maps is loaded lazily so the web bundle doesn't crash trying
+// to import it (it has native-only dependencies).
+let MapView: any = null;
+let Marker:  any = null;
+let Polyline: any = null;
+
+if (Platform.OS !== 'web') {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const RNMaps = require('react-native-maps');
+  MapView  = RNMaps.default;
+  Marker   = RNMaps.Marker;
+  Polyline = RNMaps.Polyline;
+}
+
+// Default region – Hyderabad, India
+const DEFAULT_REGION = {
+  latitude:       17.4126,
+  longitude:      78.2676,
+  latitudeDelta:  0.01,
+  longitudeDelta: 0.01,
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+export default function RiderMap({ riderLocation, routeCoords, showTrail }: RiderMapProps) {
+  const mapRef = useRef<any>(null);
+
+  // Smoothly pan the camera to the rider whenever position changes
+  useEffect(() => {
+    if (riderLocation && mapRef.current && Platform.OS !== 'web') {
+      mapRef.current.animateCamera(
+        {
+          center: {
+            latitude:  riderLocation.latitude,
+            longitude: riderLocation.longitude,
+          },
+          zoom: 16,
+        },
+        { duration: 800 }
+      );
+    }
+  }, [riderLocation]);
+
+  // ── Web fallback ───────────────────────────────────────────────────────────
+  if (Platform.OS === 'web') {
+    return (
+      <View style={styles.webFallback}>
+        <Text style={styles.webTitle}>🗺️  Live Rider Position</Text>
+        {riderLocation ? (
+          <>
+            <View style={styles.webDot} />
+            <Text style={styles.webCoord}>
+              {riderLocation.latitude.toFixed(6)},{'\n'}
+              {riderLocation.longitude.toFixed(6)}
+            </Text>
+            <Text style={styles.webNote}>
+              react-native-maps is not supported on web.{'\n'}
+              Run on Android / iOS to see the live map.
+            </Text>
+          </>
+        ) : (
+          <Text style={styles.webNote}>Waiting for rider location…</Text>
+        )}
+      </View>
+    );
+  }
+
+  // ── Native map ─────────────────────────────────────────────────────────────
+  return (
+    <MapView
+      ref={mapRef}
+      style={styles.map}
+      initialRegion={
+        riderLocation
+          ? {
+              ...riderLocation,
+              latitudeDelta:  0.01,
+              longitudeDelta: 0.01,
+            }
+          : DEFAULT_REGION
+      }
+      showsUserLocation
+      showsMyLocationButton
+    >
+      {/* Rider pin – updates position as new coords arrive */}
+      {riderLocation && (
+        <Marker
+          coordinate={riderLocation}
+          title="Rider"
+          description="Live position"
+          pinColor="#E53E3E"
+        />
+      )}
+
+      {/* Route trail */}
+      {showTrail && routeCoords.length > 1 && (
+        <Polyline
+          coordinates={routeCoords}
+          strokeColor="#E53E3E"
+          strokeWidth={3}
+          lineDashPattern={[6, 3]}
+        />
+      )}
+    </MapView>
+  );
+}
+
+const styles = StyleSheet.create({
+  map: {
+    flex: 1,
+  },
+  // ── web fallback ────────────────────────────────────────────────────────
+  webFallback: {
+    flex: 1,
+    backgroundColor: '#EBF8FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    padding: 20,
+  },
+  webTitle: { fontSize: 18, fontWeight: '700', color: '#2B6CB0' },
+  webDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#E53E3E',
+  },
+  webCoord: {
+    fontSize: 20,
+    color: '#2C5282',
+    fontFamily: 'monospace',
+    textAlign: 'center',
+  },
+  webNote: {
+    fontSize: 13,
+    color: '#718096',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+});
+</file>
+
+<file path="config/backend.ts">
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
+
+const BACKEND_PORT = '8080';
+
+function normalizeOrigin(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed.replace(/\/+$/, '');
+  }
+  return `http://${trimmed.replace(/\/+$/, '')}`;
+}
+
+function extractHostname(candidate: string | null | undefined): string | null {
+  if (!candidate) return null;
+
+  try {
+    const withScheme =
+      candidate.startsWith('http://') ||
+      candidate.startsWith('https://') ||
+      candidate.startsWith('exp://') ||
+      candidate.startsWith('exps://')
+        ? candidate
+        : `http://${candidate}`;
+
+    const url = new URL(withScheme);
+    return url.hostname || null;
+  } catch {
+    const cleaned = candidate.replace(/^[a-z]+:\/\//i, '');
+    const hostname = cleaned.split('/')[0]?.split(':')[0];
+    return hostname || null;
+  }
+}
+
+function getAutoDetectedHost(): string | null {
+  const host =
+    extractHostname(Constants.expoConfig?.hostUri) ??
+    extractHostname(Constants.platform?.hostUri) ??
+    extractHostname(Constants.linkingUri) ??
+    extractHostname(Constants.experienceUrl);
+
+  return host ? `${host}:${BACKEND_PORT}` : null;
+}
+
+export function getBackendOrigin(): string {
+  const explicitUrl = normalizeOrigin(process.env.EXPO_PUBLIC_BACKEND_URL ?? '');
+  if (explicitUrl) return explicitUrl;
+
+  const explicitHost = (process.env.EXPO_PUBLIC_BACKEND_HOST ?? '').trim();
+  if (explicitHost) return `http://${explicitHost}`;
+
+  if (Platform.OS === 'web') {
+    return `http://localhost:${BACKEND_PORT}`;
+  }
+
+  const autoDetectedHost = getAutoDetectedHost();
+  if (autoDetectedHost) {
+    return `http://${autoDetectedHost}`;
+  }
+
+  if (Platform.OS === 'android') {
+    return `http://10.0.2.2:${BACKEND_PORT}`;
+  }
+
+  return `http://localhost:${BACKEND_PORT}`;
+}
+
+export function getBackendWsUrl(): string {
+  return `${getBackendOrigin()}/ws`;
+}
+
+export function getBackendDisplayHost(): string {
+  return getBackendOrigin().replace(/^https?:\/\//, '');
+}
+</file>
+
+<file path="hooks/use-user-websocket.ts">
+/**
+ * hooks/use-user-websocket.ts
+ *
+ * Custom hook for the User App.
+ */
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Client, IFrame, IMessage, StompSubscription } from '@stomp/stompjs';
+import 'text-encoding';
+
+import { getBackendOrigin, getBackendWsUrl } from '@/config/backend';
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const SockJS = require('sockjs-client') as any;
+
+export interface LocationPayload {
+  riderId: string;
+  latitude: number;
+  longitude: number;
+  accuracy: number;
+  timestamp: number;
+}
+
+export type ConnectionStatus =
+  | 'disconnected'
+  | 'connecting'
+  | 'connected'
+  | 'error';
+
+interface UserWebSocketHook {
+  connectionStatus: ConnectionStatus;
+  isConnected: boolean;
+  subscribe: (
+    riderId: string,
+    onUpdate: (payload: LocationPayload) => void
+  ) => void;
+  unsubscribe: () => void;
+  fetchLastKnownLocation: (riderId: string) => Promise<LocationPayload | null>;
+}
+
+export function useUserWebSocket(): UserWebSocketHook {
+  const [connectionStatus, setConnectionStatus] =
+    useState<ConnectionStatus>('disconnected');
+
+  const clientRef = useRef<Client | null>(null);
+  const subscriptionRef = useRef<StompSubscription | null>(null);
+  const retryRef = useRef(0);
+
+  useEffect(() => {
+    const client = new Client({
+      webSocketFactory: () => new SockJS(getBackendWsUrl()),
+      heartbeatIncoming: 4000,
+      heartbeatOutgoing: 4000,
+      reconnectDelay: Math.min(2000 * 2 ** retryRef.current, 30_000),
+
+      onConnect: (_frame: IFrame) => {
+        console.log('[UserWS] Connected');
+        setConnectionStatus('connected');
+        retryRef.current = 0;
+      },
+      onDisconnect: () => {
+        console.log('[UserWS] Disconnected');
+        setConnectionStatus('disconnected');
+      },
+      onStompError: (frame: IFrame) => {
+        console.error('[UserWS] STOMP error', frame.headers.message);
+        setConnectionStatus('error');
+        retryRef.current += 1;
+      },
+      onWebSocketError: () => {
+        setConnectionStatus('error');
+        retryRef.current += 1;
+      },
+    });
+
+    setConnectionStatus('connecting');
+    client.activate();
+    clientRef.current = client;
+
+    return () => {
+      subscriptionRef.current?.unsubscribe();
+      client.deactivate();
+    };
+  }, []);
+
+  const subscribe = useCallback(
+    (riderId: string, onUpdate: (payload: LocationPayload) => void) => {
+      const client = clientRef.current;
+      if (!client?.connected) {
+        console.warn('[UserWS] Not connected - cannot subscribe yet');
+        const interval = setInterval(() => {
+          if (clientRef.current?.connected) {
+            clearInterval(interval);
+            doSubscribe(riderId, onUpdate);
+          }
+        }, 500);
+        return;
+      }
+      doSubscribe(riderId, onUpdate);
+    },
+    []
+  );
+
+  const doSubscribe = (
+    riderId: string,
+    onUpdate: (payload: LocationPayload) => void
+  ) => {
+    subscriptionRef.current?.unsubscribe();
+
+    const destination = `/topic/rider/${riderId}`;
+    const sub = clientRef.current!.subscribe(destination, (message: IMessage) => {
+      try {
+        const data: LocationPayload = JSON.parse(message.body);
+        onUpdate(data);
+      } catch (error) {
+        console.error('[UserWS] Failed to parse message', error);
+      }
+    });
+
+    subscriptionRef.current = sub;
+    console.log(`[UserWS] Subscribed to ${destination}`);
+  };
+
+  const unsubscribe = useCallback(() => {
+    subscriptionRef.current?.unsubscribe();
+    subscriptionRef.current = null;
+  }, []);
+
+  const fetchLastKnownLocation = useCallback(
+    async (riderId: string): Promise<LocationPayload | null> => {
+      try {
+        const res = await fetch(`${getBackendOrigin()}/api/location/${riderId}/last`);
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (data?.latitude == null) return null;
+        return data as LocationPayload;
+      } catch (error) {
+        console.warn('[UserWS] fetchLastKnownLocation failed', error);
+        return null;
+      }
+    },
+    []
+  );
+
+  return {
+    connectionStatus,
+    isConnected: connectionStatus === 'connected',
+    subscribe,
+    unsubscribe,
+    fetchLastKnownLocation,
+  };
+}
+</file>
+
+<file path=".gitignore">
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+app-example
+
+# generated native folders
+/ios
+/android
+</file>
+
+<file path="app.json">
+{
+  "expo": {
+    "name": "UserApp",
+    "slug": "UserApp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "userapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "We show your current position on the map while tracking your rider."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.INTERNET"
+      ]
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow UserApp to access your location to show your position on the map."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "backgroundColor": "#000000"
+          }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
+</file>
+
+<file path="app/_layout.tsx">
+/**
+ * app/_layout.tsx  – User App root layout
+ */
+import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import 'react-native-reanimated';
+
+import { useColorScheme } from '@/hooks/use-color-scheme';
+
+export const unstable_settings = {
+  anchor: '(tabs)',
+};
+
+export default function RootLayout() {
+  const colorScheme = useColorScheme();
+
+  return (
+    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <Stack>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      </Stack>
+      <StatusBar style="auto" />
+    </ThemeProvider>
+  );
+}
+</file>
+
+<file path="app/(tabs)/_layout.tsx">
+/**
+ * app/(tabs)/_layout.tsx  – User App tab navigator
+ */
+import { Tabs } from 'expo-router';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { HapticTab } from '@/components/haptic-tab';
+
+export default function TabLayout() {
+  const colorScheme = useColorScheme();
+
+  return (
+    <Tabs
+      screenOptions={{
+        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        headerShown: false,
+        tabBarButton: HapticTab,
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Track Order',
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={28} name="house.fill" color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="history"
+        options={{
+          title: 'History',
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={28} name="paperplane.fill" color={color} />
+          ),
+        }}
+      />
+    </Tabs>
+  );
+}
+</file>
+
+<file path="app/(tabs)/explore.tsx">
+import { Image } from 'expo-image';
+import { Platform, StyleSheet } from 'react-native';
+
+import { Collapsible } from '@/components/ui/collapsible';
+import { ExternalLink } from '@/components/external-link';
+import ParallaxScrollView from '@/components/parallax-scroll-view';
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Fonts } from '@/constants/theme';
+
+export default function TabTwoScreen() {
+  return (
+    <ParallaxScrollView
+      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
+      headerImage={
+        <IconSymbol
+          size={310}
+          color="#808080"
+          name="chevron.left.forwardslash.chevron.right"
+          style={styles.headerImage}
+        />
+      }>
+      <ThemedView style={styles.titleContainer}>
+        <ThemedText
+          type="title"
+          style={{
+            fontFamily: Fonts.rounded,
+          }}>
+          Explore
+        </ThemedText>
+      </ThemedView>
+      <ThemedText>This app includes example code to help you get started.</ThemedText>
+      <Collapsible title="File-based routing">
+        <ThemedText>
+          This app has two screens:{' '}
+          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
+          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
+        </ThemedText>
+        <ThemedText>
+          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
+          sets up the tab navigator.
+        </ThemedText>
+        <ExternalLink href="https://docs.expo.dev/router/introduction">
+          <ThemedText type="link">Learn more</ThemedText>
+        </ExternalLink>
+      </Collapsible>
+      <Collapsible title="Android, iOS, and web support">
+        <ThemedText>
+          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
+          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
+        </ThemedText>
+      </Collapsible>
+      <Collapsible title="Images">
+        <ThemedText>
+          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
+          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
+          different screen densities
+        </ThemedText>
+        <Image
+          source={require('@/assets/images/react-logo.png')}
+          style={{ width: 100, height: 100, alignSelf: 'center' }}
+        />
+        <ExternalLink href="https://reactnative.dev/docs/images">
+          <ThemedText type="link">Learn more</ThemedText>
+        </ExternalLink>
+      </Collapsible>
+      <Collapsible title="Light and dark mode components">
+        <ThemedText>
+          This template has light and dark mode support. The{' '}
+          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
+          what the user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
+        </ThemedText>
+        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
+          <ThemedText type="link">Learn more</ThemedText>
+        </ExternalLink>
+      </Collapsible>
+      <Collapsible title="Animations">
+        <ThemedText>
+          This template includes an example of an animated component. The{' '}
+          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
+          the powerful{' '}
+          <ThemedText type="defaultSemiBold" style={{ fontFamily: Fonts.mono }}>
+            react-native-reanimated
+          </ThemedText>{' '}
+          library to create a waving hand animation.
+        </ThemedText>
+        {Platform.select({
+          ios: (
+            <ThemedText>
+              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
+              component provides a parallax effect for the header image.
+            </ThemedText>
+          ),
+        })}
+      </Collapsible>
+    </ParallaxScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  headerImage: {
+    color: '#808080',
+    bottom: -90,
+    left: -35,
+    position: 'absolute',
+  },
+  titleContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+});
+</file>
+
+<file path="app/(tabs)/index.tsx">
+/**
+ * app/(tabs)/index.tsx - User App "Track Your Order" Screen
+ */
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Dimensions,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  Platform,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+
+import { getBackendDisplayHost } from '@/config/backend';
+import { ConnectionStatus, LocationPayload, useUserWebSocket } from '@/hooks/use-user-websocket';
+import RiderMap, { LatLng } from '@/components/rider-map';
+
+const RIDER_ID = 'RIDER_001';
+const MAX_TRAIL = 100;
+const BACKEND_HOST = getBackendDisplayHost();
+const { height: SCREEN_H } = Dimensions.get('window');
+const MAP_HEIGHT = Math.min(SCREEN_H * 0.45, 360);
+
+const statusColor: Record<ConnectionStatus, string> = {
+  disconnected: '#E53E3E',
+  connecting: '#DD6B20',
+  connected: '#38A169',
+  error: '#C53030',
+};
+
+const statusLabel: Record<ConnectionStatus, string> = {
+  disconnected: 'Disconnected',
+  connecting: 'Connecting...',
+  connected: 'Live',
+  error: 'Connection error - retrying...',
+};
+
+export default function UserHomeScreen() {
+  const { connectionStatus, isConnected, subscribe, fetchLastKnownLocation } = useUserWebSocket();
+
+  const [riderLocation, setRiderLocation] = useState<LatLng | null>(null);
+  const [routeCoords, setRouteCoords] = useState<LatLng[]>([]);
+  const [showTrail, setShowTrail] = useState(true);
+  const [lastSeen, setLastSeen] = useState<string | null>(null);
+  const [updateCount, setUpdateCount] = useState(0);
+  const updateCountRef = useRef(0);
+  const hasSubscribed = useRef(false);
+
+  const handleLocationUpdate = useCallback((payload: LocationPayload) => {
+    const coord: LatLng = {
+      latitude: payload.latitude,
+      longitude: payload.longitude,
+    };
+
+    setRiderLocation(coord);
+    setLastSeen(new Date().toLocaleTimeString());
+    updateCountRef.current += 1;
+    setUpdateCount(updateCountRef.current);
+
+    setRouteCoords((prev) => {
+      const next = [...prev, coord];
+      return next.length > MAX_TRAIL ? next.slice(next.length - MAX_TRAIL) : next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (isConnected && !hasSubscribed.current) {
+      hasSubscribed.current = true;
+      subscribe(RIDER_ID, handleLocationUpdate);
+    }
+
+    if (!isConnected) {
+      hasSubscribed.current = false;
+    }
+  }, [handleLocationUpdate, isConnected, subscribe]);
+
+  useEffect(() => {
+    fetchLastKnownLocation(RIDER_ID).then((payload) => {
+      if (!payload) return;
+
+      const coord: LatLng = {
+        latitude: payload.latitude,
+        longitude: payload.longitude,
+      };
+
+      setRiderLocation(coord);
+      setRouteCoords([coord]);
+      setLastSeen('(last known)');
+    });
+  }, [fetchLastKnownLocation]);
+
+  const clearTrail = useCallback(() => setRouteCoords([]), []);
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <StatusBar style="light" />
+
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Track Your Order</Text>
+        <Text style={styles.headerSub}>Rider is on the way!</Text>
+      </View>
+
+      <View style={[styles.statusBar, { backgroundColor: statusColor[connectionStatus] }]}>
+        {connectionStatus === 'connecting' && (
+          <ActivityIndicator size="small" color="#fff" style={{ marginRight: 6 }} />
+        )}
+        <View
+          style={[
+            styles.dot,
+            { backgroundColor: isConnected ? '#9AE6B4' : '#FEB2B2' },
+          ]}
+        />
+        <Text style={styles.statusText}>{statusLabel[connectionStatus]}</Text>
+        {lastSeen && isConnected && <Text style={styles.statusSub}> · {lastSeen}</Text>}
+      </View>
+
+      <View style={{ height: MAP_HEIGHT }}>
+        <RiderMap
+          riderLocation={riderLocation}
+          routeCoords={routeCoords}
+          showTrail={showTrail}
+        />
+      </View>
+
+      <ScrollView style={styles.panel} contentContainerStyle={styles.panelBody}>
+        <View style={styles.riderRow}>
+          <View style={styles.riderAvatar}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: '#2B6CB0' }}>R</Text>
+          </View>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={styles.riderName}>Delivery Rider</Text>
+            <Text style={styles.riderId}>ID: {RIDER_ID}</Text>
+          </View>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{updateCount} updates</Text>
+          </View>
+        </View>
+
+        {riderLocation ? (
+          <View style={styles.coordCard}>
+            <Text style={styles.coordLabel}>Current position</Text>
+            <Text style={styles.coordValue}>
+              {riderLocation.latitude.toFixed(6)}, {riderLocation.longitude.toFixed(6)}
+            </Text>
+            {lastSeen && <Text style={styles.coordSub}>Updated at {lastSeen}</Text>}
+          </View>
+        ) : (
+          <View style={[styles.coordCard, styles.waitingCard]}>
+            <ActivityIndicator size="small" color="#3182CE" />
+            <Text style={styles.waitingText}>Waiting for rider...</Text>
+          </View>
+        )}
+
+        <View style={styles.controls}>
+          <TouchableOpacity
+            style={[styles.ctrlBtn, showTrail && styles.ctrlBtnActive]}
+            onPress={() => setShowTrail((value) => !value)}
+          >
+            <Text style={styles.ctrlText}>{showTrail ? 'Hide trail' : 'Show trail'}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.ctrlBtn} onPress={clearTrail}>
+            <Text style={styles.ctrlText}>Clear trail</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.footer}>
+          Subscribed to /topic/rider/{RIDER_ID}
+          {'\n'}Server {BACKEND_HOST}
+        </Text>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: '#fff' },
+  header: {
+    backgroundColor: '#2B6CB0',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  headerTitle: { fontSize: 20, fontWeight: '700', color: '#fff' },
+  headerSub: { fontSize: 13, color: '#BEE3F8', marginTop: 2 },
+  statusBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  dot: { width: 8, height: 8, borderRadius: 4, marginRight: 7 },
+  statusText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  statusSub: { color: 'rgba(255,255,255,0.75)', fontSize: 12 },
+  panel: { flex: 1 },
+  panelBody: { padding: 16, gap: 12 },
+  riderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EDF2F7',
+  },
+  riderAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#EBF8FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  riderName: { fontSize: 15, fontWeight: '600', color: '#2D3748' },
+  riderId: { fontSize: 12, color: '#718096', marginTop: 2 },
+  badge: {
+    backgroundColor: '#EBF8FF',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  badgeText: { fontSize: 12, color: '#2B6CB0', fontWeight: '600' },
+  coordCard: {
+    backgroundColor: '#EBF8FF',
+    borderRadius: 10,
+    padding: 14,
+    borderLeftWidth: 4,
+    borderLeftColor: '#3182CE',
+  },
+  waitingCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    justifyContent: 'center',
+    paddingVertical: 18,
+  },
+  coordLabel: { fontSize: 12, fontWeight: '600', color: '#2B6CB0', marginBottom: 4 },
+  coordValue: {
+    fontSize: 15,
+    color: '#2C5282',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  coordSub: { fontSize: 12, color: '#4A5568', marginTop: 4 },
+  waitingText: { fontSize: 14, color: '#2B6CB0' },
+  controls: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  ctrlBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#EDF2F7',
+    alignItems: 'center',
+  },
+  ctrlBtnActive: { backgroundColor: '#BEE3F8' },
+  ctrlText: { fontSize: 13, color: '#2D3748', fontWeight: '500' },
+  footer: {
+    textAlign: 'center',
+    fontSize: 11,
+    color: '#A0AEC0',
+    lineHeight: 18,
+    marginBottom: 20,
+  },
+});
+</file>
+
+<file path="app/modal.tsx">
+import { Link } from 'expo-router';
+import { StyleSheet } from 'react-native';
+
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+
+export default function ModalScreen() {
+  return (
+    <ThemedView style={styles.container}>
+      <ThemedText type="title">This is a modal</ThemedText>
+      <Link href="/" dismissTo style={styles.link}>
+        <ThemedText type="link">Go to home screen</ThemedText>
+      </Link>
+    </ThemedView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  link: {
+    marginTop: 15,
+    paddingVertical: 15,
+  },
+});
+</file>
+
+<file path="components/external-link.tsx">
+import { Href, Link } from 'expo-router';
+import { openBrowserAsync, WebBrowserPresentationStyle } from 'expo-web-browser';
+import { type ComponentProps } from 'react';
+
+type Props = Omit<ComponentProps<typeof Link>, 'href'> & { href: Href & string };
+
+export function ExternalLink({ href, ...rest }: Props) {
+  return (
+    <Link
+      target="_blank"
+      {...rest}
+      href={href}
+      onPress={async (event) => {
+        if (process.env.EXPO_OS !== 'web') {
+          // Prevent the default behavior of linking to the default browser on native.
+          event.preventDefault();
+          // Open the link in an in-app browser.
+          await openBrowserAsync(href, {
+            presentationStyle: WebBrowserPresentationStyle.AUTOMATIC,
+          });
+        }
+      }}
+    />
+  );
+}
+</file>
+
+<file path="components/haptic-tab.tsx">
+import { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
+import { PlatformPressable } from '@react-navigation/elements';
+import * as Haptics from 'expo-haptics';
+
+export function HapticTab(props: BottomTabBarButtonProps) {
+  return (
+    <PlatformPressable
+      {...props}
+      onPressIn={(ev) => {
+        if (process.env.EXPO_OS === 'ios') {
+          // Add a soft haptic feedback when pressing down on the tabs.
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
+        props.onPressIn?.(ev);
+      }}
+    />
+  );
+}
+</file>
+
+<file path="components/hello-wave.tsx">
+import Animated from 'react-native-reanimated';
+
+export function HelloWave() {
+  return (
+    <Animated.Text
+      style={{
+        fontSize: 28,
+        lineHeight: 32,
+        marginTop: -6,
+        animationName: {
+          '50%': { transform: [{ rotate: '25deg' }] },
+        },
+        animationIterationCount: 4,
+        animationDuration: '300ms',
+      }}>
+      👋
+    </Animated.Text>
+  );
+}
+</file>
+
+<file path="components/parallax-scroll-view.tsx">
+import type { PropsWithChildren, ReactElement } from 'react';
+import { StyleSheet } from 'react-native';
+import Animated, {
+  interpolate,
+  useAnimatedRef,
+  useAnimatedStyle,
+  useScrollOffset,
+} from 'react-native-reanimated';
+
+import { ThemedView } from '@/components/themed-view';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useThemeColor } from '@/hooks/use-theme-color';
+
+const HEADER_HEIGHT = 250;
+
+type Props = PropsWithChildren<{
+  headerImage: ReactElement;
+  headerBackgroundColor: { dark: string; light: string };
+}>;
+
+export default function ParallaxScrollView({
+  children,
+  headerImage,
+  headerBackgroundColor,
+}: Props) {
+  const backgroundColor = useThemeColor({}, 'background');
+  const colorScheme = useColorScheme() ?? 'light';
+  const scrollRef = useAnimatedRef<Animated.ScrollView>();
+  const scrollOffset = useScrollOffset(scrollRef);
+  const headerAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        {
+          translateY: interpolate(
+            scrollOffset.value,
+            [-HEADER_HEIGHT, 0, HEADER_HEIGHT],
+            [-HEADER_HEIGHT / 2, 0, HEADER_HEIGHT * 0.75]
+          ),
+        },
+        {
+          scale: interpolate(scrollOffset.value, [-HEADER_HEIGHT, 0, HEADER_HEIGHT], [2, 1, 1]),
+        },
+      ],
+    };
+  });
+
+  return (
+    <Animated.ScrollView
+      ref={scrollRef}
+      style={{ backgroundColor, flex: 1 }}
+      scrollEventThrottle={16}>
+      <Animated.View
+        style={[
+          styles.header,
+          { backgroundColor: headerBackgroundColor[colorScheme] },
+          headerAnimatedStyle,
+        ]}>
+        {headerImage}
+      </Animated.View>
+      <ThemedView style={styles.content}>{children}</ThemedView>
+    </Animated.ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    height: HEADER_HEIGHT,
+    overflow: 'hidden',
+  },
+  content: {
+    flex: 1,
+    padding: 32,
+    gap: 16,
+    overflow: 'hidden',
+  },
+});
+</file>
+
+<file path="components/themed-text.tsx">
+import { StyleSheet, Text, type TextProps } from 'react-native';
+
+import { useThemeColor } from '@/hooks/use-theme-color';
+
+export type ThemedTextProps = TextProps & {
+  lightColor?: string;
+  darkColor?: string;
+  type?: 'default' | 'title' | 'defaultSemiBold' | 'subtitle' | 'link';
+};
+
+export function ThemedText({
+  style,
+  lightColor,
+  darkColor,
+  type = 'default',
+  ...rest
+}: ThemedTextProps) {
+  const color = useThemeColor({ light: lightColor, dark: darkColor }, 'text');
+
+  return (
+    <Text
+      style={[
+        { color },
+        type === 'default' ? styles.default : undefined,
+        type === 'title' ? styles.title : undefined,
+        type === 'defaultSemiBold' ? styles.defaultSemiBold : undefined,
+        type === 'subtitle' ? styles.subtitle : undefined,
+        type === 'link' ? styles.link : undefined,
+        style,
+      ]}
+      {...rest}
+    />
+  );
+}
+
+const styles = StyleSheet.create({
+  default: {
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  defaultSemiBold: {
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: '600',
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    lineHeight: 32,
+  },
+  subtitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  link: {
+    lineHeight: 30,
+    fontSize: 16,
+    color: '#0a7ea4',
+  },
+});
+</file>
+
+<file path="components/themed-view.tsx">
+import { View, type ViewProps } from 'react-native';
+
+import { useThemeColor } from '@/hooks/use-theme-color';
+
+export type ThemedViewProps = ViewProps & {
+  lightColor?: string;
+  darkColor?: string;
+};
+
+export function ThemedView({ style, lightColor, darkColor, ...otherProps }: ThemedViewProps) {
+  const backgroundColor = useThemeColor({ light: lightColor, dark: darkColor }, 'background');
+
+  return <View style={[{ backgroundColor }, style]} {...otherProps} />;
+}
+</file>
+
+<file path="components/ui/collapsible.tsx">
+import { PropsWithChildren, useState } from 'react';
+import { StyleSheet, TouchableOpacity } from 'react-native';
+
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+
+export function Collapsible({ children, title }: PropsWithChildren & { title: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const theme = useColorScheme() ?? 'light';
+
+  return (
+    <ThemedView>
+      <TouchableOpacity
+        style={styles.heading}
+        onPress={() => setIsOpen((value) => !value)}
+        activeOpacity={0.8}>
+        <IconSymbol
+          name="chevron.right"
+          size={18}
+          weight="medium"
+          color={theme === 'light' ? Colors.light.icon : Colors.dark.icon}
+          style={{ transform: [{ rotate: isOpen ? '90deg' : '0deg' }] }}
+        />
+
+        <ThemedText type="defaultSemiBold">{title}</ThemedText>
+      </TouchableOpacity>
+      {isOpen && <ThemedView style={styles.content}>{children}</ThemedView>}
+    </ThemedView>
+  );
+}
+
+const styles = StyleSheet.create({
+  heading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  content: {
+    marginTop: 6,
+    marginLeft: 24,
+  },
+});
+</file>
+
+<file path="components/ui/icon-symbol.ios.tsx">
+import { SymbolView, SymbolViewProps, SymbolWeight } from 'expo-symbols';
+import { StyleProp, ViewStyle } from 'react-native';
+
+export function IconSymbol({
+  name,
+  size = 24,
+  color,
+  style,
+  weight = 'regular',
+}: {
+  name: SymbolViewProps['name'];
+  size?: number;
+  color: string;
+  style?: StyleProp<ViewStyle>;
+  weight?: SymbolWeight;
+}) {
+  return (
+    <SymbolView
+      weight={weight}
+      tintColor={color}
+      resizeMode="scaleAspectFit"
+      name={name}
+      style={[
+        {
+          width: size,
+          height: size,
+        },
+        style,
+      ]}
+    />
+  );
+}
+</file>
+
+<file path="components/ui/icon-symbol.tsx">
+// Fallback for using MaterialIcons on Android and web.
+
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { SymbolWeight, SymbolViewProps } from 'expo-symbols';
+import { ComponentProps } from 'react';
+import { OpaqueColorValue, type StyleProp, type TextStyle } from 'react-native';
+
+type IconMapping = Record<SymbolViewProps['name'], ComponentProps<typeof MaterialIcons>['name']>;
+type IconSymbolName = keyof typeof MAPPING;
+
+/**
+ * Add your SF Symbols to Material Icons mappings here.
+ * - see Material Icons in the [Icons Directory](https://icons.expo.fyi).
+ * - see SF Symbols in the [SF Symbols](https://developer.apple.com/sf-symbols/) app.
+ */
+const MAPPING = {
+  'house.fill': 'home',
+  'paperplane.fill': 'send',
+  'chevron.left.forwardslash.chevron.right': 'code',
+  'chevron.right': 'chevron-right',
+} as IconMapping;
+
+/**
+ * An icon component that uses native SF Symbols on iOS, and Material Icons on Android and web.
+ * This ensures a consistent look across platforms, and optimal resource usage.
+ * Icon `name`s are based on SF Symbols and require manual mapping to Material Icons.
+ */
+export function IconSymbol({
+  name,
+  size = 24,
+  color,
+  style,
+}: {
+  name: IconSymbolName;
+  size?: number;
+  color: string | OpaqueColorValue;
+  style?: StyleProp<TextStyle>;
+  weight?: SymbolWeight;
+}) {
+  return <MaterialIcons color={color} size={size} name={MAPPING[name]} style={style} />;
+}
+</file>
+
+<file path="constants/theme.ts">
+/**
+ * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
+ * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ */
+
+import { Platform } from 'react-native';
+
+const tintColorLight = '#0a7ea4';
+const tintColorDark = '#fff';
+
+export const Colors = {
+  light: {
+    text: '#11181C',
+    background: '#fff',
+    tint: tintColorLight,
+    icon: '#687076',
+    tabIconDefault: '#687076',
+    tabIconSelected: tintColorLight,
+  },
+  dark: {
+    text: '#ECEDEE',
+    background: '#151718',
+    tint: tintColorDark,
+    icon: '#9BA1A6',
+    tabIconDefault: '#9BA1A6',
+    tabIconSelected: tintColorDark,
+  },
+};
+
+export const Fonts = Platform.select({
+  ios: {
+    /** iOS `UIFontDescriptorSystemDesignDefault` */
+    sans: 'system-ui',
+    /** iOS `UIFontDescriptorSystemDesignSerif` */
+    serif: 'ui-serif',
+    /** iOS `UIFontDescriptorSystemDesignRounded` */
+    rounded: 'ui-rounded',
+    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
+    mono: 'ui-monospace',
+  },
+  default: {
+    sans: 'normal',
+    serif: 'serif',
+    rounded: 'normal',
+    mono: 'monospace',
+  },
+  web: {
+    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    serif: "Georgia, 'Times New Roman', serif",
+    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
+    mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+  },
+});
+</file>
+
+<file path="eslint.config.js">
+// https://docs.expo.dev/guides/using-eslint/
+const { defineConfig } = require('eslint/config');
+const expoConfig = require('eslint-config-expo/flat');
+
+module.exports = defineConfig([
+  expoConfig,
+  {
+    ignores: ['dist/*'],
+  },
+]);
+</file>
+
+<file path="hooks/use-color-scheme.ts">
+export { useColorScheme } from 'react-native';
+</file>
+
+<file path="hooks/use-color-scheme.web.ts">
+import { useEffect, useState } from 'react';
+import { useColorScheme as useRNColorScheme } from 'react-native';
+
+/**
+ * To support static rendering, this value needs to be re-calculated on the client side for web
+ */
+export function useColorScheme() {
+  const [hasHydrated, setHasHydrated] = useState(false);
+
+  useEffect(() => {
+    setHasHydrated(true);
+  }, []);
+
+  const colorScheme = useRNColorScheme();
+
+  if (hasHydrated) {
+    return colorScheme;
+  }
+
+  return 'light';
+}
+</file>
+
+<file path="hooks/use-theme-color.ts">
+/**
+ * Learn more about light and dark modes:
+ * https://docs.expo.dev/guides/color-schemes/
+ */
+
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+
+export function useThemeColor(
+  props: { light?: string; dark?: string },
+  colorName: keyof typeof Colors.light & keyof typeof Colors.dark
+) {
+  const theme = useColorScheme() ?? 'light';
+  const colorFromProps = props[theme];
+
+  if (colorFromProps) {
+    return colorFromProps;
+  } else {
+    return Colors[theme][colorName];
+  }
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "userapp",
+  "main": "expo-router/entry",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "expo start",
+    "reset-project": "node ./scripts/reset-project.js",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "lint": "expo lint"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^15.0.3",
+    "@react-navigation/bottom-tabs": "^7.4.0",
+    "@react-navigation/elements": "^2.6.3",
+    "@react-navigation/native": "^7.1.8",
+    "@stomp/stompjs": "^7.3.0",
+    "expo": "^54.0.33",
+    "expo-constants": "~18.0.13",
+    "expo-font": "~14.0.11",
+    "expo-haptics": "~15.0.8",
+    "expo-image": "~3.0.11",
+    "expo-linking": "~8.0.11",
+    "expo-location": "~19.0.8",
+    "expo-router": "~6.0.23",
+    "expo-splash-screen": "~31.0.13",
+    "expo-status-bar": "~3.0.9",
+    "expo-symbols": "~1.0.8",
+    "expo-system-ui": "~6.0.9",
+    "expo-web-browser": "~15.0.10",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-maps": "1.20.1",
+    "react-native-reanimated": "~4.1.1",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-web": "~0.21.0",
+    "react-native-worklets": "0.5.1",
+    "sockjs-client": "^1.6.1",
+    "text-encoding": "^0.7.0"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.0",
+    "@types/sockjs-client": "^1.5.4",
+    "eslint": "^9.25.0",
+    "eslint-config-expo": "~10.0.0",
+    "typescript": "~5.9.2"
+  },
+  "private": true
+}
+</file>
+
+<file path="README.md">
+# Welcome to your Expo app 👋
+
+This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+
+## Get started
+
+1. Install dependencies
+
+   ```bash
+   npm install
+   ```
+
+2. Start the app
+
+   ```bash
+   npx expo start
+   ```
+
+In the output, you'll find options to open the app in a
+
+- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
+- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
+- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
+- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+
+You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+
+## Get a fresh project
+
+When you're ready, run:
+
+```bash
+npm run reset-project
+```
+
+This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+
+## Learn more
+
+To learn more about developing your project with Expo, look at the following resources:
+
+- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
+- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+
+## Join the community
+
+Join our community of developers creating universal apps.
+
+- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
+- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+</file>
+
+<file path="scripts/reset-project.js">
+#!/usr/bin/env node
+
+/**
+ * This script is used to reset the project to a blank state.
+ * It deletes or moves the /app, /components, /hooks, /scripts, and /constants directories to /app-example based on user input and creates a new /app directory with an index.tsx and _layout.tsx file.
+ * You can remove the `reset-project` script from package.json and safely delete this file after running it.
+ */
+
+const fs = require("fs");
+const path = require("path");
+const readline = require("readline");
+
+const root = process.cwd();
+const oldDirs = ["app", "components", "hooks", "constants", "scripts"];
+const exampleDir = "app-example";
+const newAppDir = "app";
+const exampleDirPath = path.join(root, exampleDir);
+
+const indexContent = `import { Text, View } from "react-native";
+
+export default function Index() {
+  return (
+    <View
+      style={{
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+      }}
+    >
+      <Text>Edit app/index.tsx to edit this screen.</Text>
+    </View>
+  );
+}
+`;
+
+const layoutContent = `import { Stack } from "expo-router";
+
+export default function RootLayout() {
+  return <Stack />;
+}
+`;
+
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+});
+
+const moveDirectories = async (userInput) => {
+  try {
+    if (userInput === "y") {
+      // Create the app-example directory
+      await fs.promises.mkdir(exampleDirPath, { recursive: true });
+      console.log(`📁 /${exampleDir} directory created.`);
+    }
+
+    // Move old directories to new app-example directory or delete them
+    for (const dir of oldDirs) {
+      const oldDirPath = path.join(root, dir);
+      if (fs.existsSync(oldDirPath)) {
+        if (userInput === "y") {
+          const newDirPath = path.join(root, exampleDir, dir);
+          await fs.promises.rename(oldDirPath, newDirPath);
+          console.log(`➡️ /${dir} moved to /${exampleDir}/${dir}.`);
+        } else {
+          await fs.promises.rm(oldDirPath, { recursive: true, force: true });
+          console.log(`❌ /${dir} deleted.`);
+        }
+      } else {
+        console.log(`➡️ /${dir} does not exist, skipping.`);
+      }
+    }
+
+    // Create new /app directory
+    const newAppDirPath = path.join(root, newAppDir);
+    await fs.promises.mkdir(newAppDirPath, { recursive: true });
+    console.log("\n📁 New /app directory created.");
+
+    // Create index.tsx
+    const indexPath = path.join(newAppDirPath, "index.tsx");
+    await fs.promises.writeFile(indexPath, indexContent);
+    console.log("📄 app/index.tsx created.");
+
+    // Create _layout.tsx
+    const layoutPath = path.join(newAppDirPath, "_layout.tsx");
+    await fs.promises.writeFile(layoutPath, layoutContent);
+    console.log("📄 app/_layout.tsx created.");
+
+    console.log("\n✅ Project reset complete. Next steps:");
+    console.log(
+      `1. Run \`npx expo start\` to start a development server.\n2. Edit app/index.tsx to edit the main screen.${
+        userInput === "y"
+          ? `\n3. Delete the /${exampleDir} directory when you're done referencing it.`
+          : ""
+      }`
+    );
+  } catch (error) {
+    console.error(`❌ Error during script execution: ${error.message}`);
+  }
+};
+
+rl.question(
+  "Do you want to move existing files to /app-example instead of deleting them? (Y/n): ",
+  (answer) => {
+    const userInput = answer.trim().toLowerCase() || "y";
+    if (userInput === "y" || userInput === "n") {
+      moveDirectories(userInput).finally(() => rl.close());
+    } else {
+      console.log("❌ Invalid input. Please enter 'Y' or 'N'.");
+      rl.close();
+    }
+  }
+);
+</file>
+
+<file path="tsconfig.json">
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+  ]
+}
+</file>
+
+</files>
